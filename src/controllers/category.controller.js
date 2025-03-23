@@ -1,26 +1,26 @@
 import Category from '../models/Category.js';
 
-// @desc    Yeni kategori oluştur
+// @desc    Create new category
 // @route   POST /api/categories
 // @access  Private
 export const createCategory = async (req, res) => {
     try {
         const { name } = req.body;
 
-        // Kategori adı kontrolü
+        // Name validation
         if (!name || name.trim().length === 0) {
             return res.status(400).json({
                 success: false,
-                error: 'Kategori adı zorunludur'
+                error: 'Category name is required'
             });
         }
 
-        // Aynı isimde kategori var mı kontrolü
+        // Check for duplicate category
         const existingCategory = await Category.findOne({ name: name.trim() });
         if (existingCategory) {
             return res.status(400).json({
                 success: false,
-                error: 'Bu isimde bir kategori zaten mevcut'
+                error: 'Category with this name already exists'
             });
         }
 
@@ -40,7 +40,7 @@ export const createCategory = async (req, res) => {
     }
 };
 
-// @desc    Tüm kategorileri getir
+// @desc    Get all categories
 // @route   GET /api/categories
 // @access  Private
 export const getCategories = async (req, res) => {
@@ -49,6 +49,7 @@ export const getCategories = async (req, res) => {
         
         res.json({
             success: true,
+            count: categories.length,
             data: categories
         });
     } catch (error) {
@@ -59,22 +60,22 @@ export const getCategories = async (req, res) => {
     }
 };
 
-// @desc    Kategori güncelle
+// @desc    Update category
 // @route   PUT /api/categories/:id
 // @access  Private
 export const updateCategory = async (req, res) => {
     try {
         const { name } = req.body;
 
-        // Kategori adı kontrolü
+        // Name validation
         if (!name || name.trim().length === 0) {
             return res.status(400).json({
                 success: false,
-                error: 'Kategori adı zorunludur'
+                error: 'Category name is required'
             });
         }
 
-        // Aynı isimde başka kategori var mı kontrolü
+        // Check for duplicate category
         const existingCategory = await Category.findOne({
             name: name.trim(),
             _id: { $ne: req.params.id }
@@ -83,7 +84,7 @@ export const updateCategory = async (req, res) => {
         if (existingCategory) {
             return res.status(400).json({
                 success: false,
-                error: 'Bu isimde bir kategori zaten mevcut'
+                error: 'Category with this name already exists'
             });
         }
 
@@ -96,7 +97,7 @@ export const updateCategory = async (req, res) => {
         if (!category) {
             return res.status(404).json({
                 success: false,
-                error: 'Kategori bulunamadı'
+                error: 'Category not found'
             });
         }
 
@@ -112,7 +113,7 @@ export const updateCategory = async (req, res) => {
     }
 };
 
-// @desc    Kategori sil
+// @desc    Delete category
 // @route   DELETE /api/categories/:id
 // @access  Private
 export const deleteCategory = async (req, res) => {
@@ -122,13 +123,13 @@ export const deleteCategory = async (req, res) => {
         if (!category) {
             return res.status(404).json({
                 success: false,
-                error: 'Kategori bulunamadı'
+                error: 'Category not found'
             });
         }
 
         res.json({
             success: true,
-            message: 'Kategori başarıyla silindi'
+            message: 'Category deleted successfully'
         });
     } catch (error) {
         res.status(500).json({
