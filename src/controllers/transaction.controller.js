@@ -1,6 +1,10 @@
 import Transaction from '../models/Transaction.js';
+import moment from 'moment-timezone';
 
-// @desc    Yeni işlem oluştur
+// Set default timezone for moment
+moment.tz.setDefault('Europe/Istanbul');
+
+// @desc    Create new transaction
 // @route   POST /api/transactions
 // @access  Private
 export const createTransaction = async (req, res) => {
@@ -15,33 +19,42 @@ export const createTransaction = async (req, res) => {
             attachments
         } = req.body;
 
-        // Zorunlu alan kontrolleri
-        if (!type || !['gelir', 'gider'].includes(type)) {
+        // Required field validations
+        if (!type || !['income', 'expense'].includes(type)) {
             return res.status(400).json({
                 success: false,
-                error: 'Geçerli bir işlem tipi girilmelidir (gelir/gider)'
+                error: 'Please provide a valid transaction type (income/expense)'
             });
         }
 
         if (!amount || amount <= 0) {
             return res.status(400).json({
                 success: false,
-                error: 'Geçerli bir tutar girilmelidir'
+                error: 'Please provide a valid amount'
             });
         }
 
         if (!categoryId) {
             return res.status(400).json({
                 success: false,
-                error: 'Kategori seçilmelidir'
+                error: 'Category is required'
             });
         }
 
-        if (!accountType || !['nakit', 'banka', 'kredi-karti'].includes(accountType)) {
+        if (!accountType || !['cash', 'bank', 'credit-card'].includes(accountType)) {
             return res.status(400).json({
                 success: false,
-                error: 'Geçerli bir hesap türü seçilmelidir (nakit/banka/kredi-karti)'
+                error: 'Please provide a valid account type (cash/bank/credit-card)'
             });
+        }
+
+        // Parse and format date if provided, otherwise use current time
+        let transactionDate;
+        if (date) {
+            // Expecting date in format: DD.MM.YYYY-HH:mm
+            transactionDate = moment(date, 'DD.MM.YYYY-HH:mm').toDate();
+        } else {
+            transactionDate = moment().toDate();
         }
 
         const transaction = await Transaction.create({
@@ -51,15 +64,21 @@ export const createTransaction = async (req, res) => {
             category: categoryId,
             accountType,
             description,
-            date: date || new Date(),
+            date: transactionDate,
             attachments: attachments || []
         });
 
         await transaction.populate('category', 'name');
 
+        // Format the date in response
+        const formattedTransaction = {
+            ...transaction.toObject(),
+            date: moment(transaction.date).format('DD.MM.YYYY-HH:mm')
+        };
+
         res.status(201).json({
             success: true,
-            data: transaction
+            data: formattedTransaction
         });
     } catch (error) {
         res.status(500).json({
@@ -69,7 +88,7 @@ export const createTransaction = async (req, res) => {
     }
 };
 
-// @desc    İşlemleri listele
+// @desc    Get all transactions
 // @route   GET /api/transactions
 // @access  Private
 export const getTransactions = async (req, res) => {
@@ -85,15 +104,15 @@ export const getTransactions = async (req, res) => {
 
         const query = { user: req.user._id };
 
-        // Filtreler
-        if (type && ['gelir', 'gider'].includes(type)) {
+        // Filters
+        if (type && ['income', 'expense'].includes(type)) {
             query.type = type;
         }
 
         if (startDate && endDate) {
             query.date = {
-                $gte: new Date(startDate),
-                $lte: new Date(endDate)
+                $gte: moment(startDate, 'DD.MM.YYYY-HH:mm').toDate(),
+                $lte: moment(endDate, 'DD.MM.YYYY-HH:mm').toDate()
             };
         }
 
@@ -101,7 +120,7 @@ export const getTransactions = async (req, res) => {
             query.category = categoryId;
         }
 
-        if (accountType && ['nakit', 'banka', 'kredi-karti'].includes(accountType)) {
+        if (accountType && ['cash', 'bank', 'credit-card'].includes(accountType)) {
             query.accountType = accountType;
         }
 
@@ -109,10 +128,16 @@ export const getTransactions = async (req, res) => {
             .populate('category', 'name')
             .sort(sort);
 
+        // Format dates in response
+        const formattedTransactions = transactions.map(transaction => ({
+            ...transaction.toObject(),
+            date: moment(transaction.date).format('DD.MM.YYYY-HH:mm')
+        }));
+
         res.json({
             success: true,
             count: transactions.length,
-            data: transactions
+            data: formattedTransactions
         });
     } catch (error) {
         res.status(500).json({
@@ -122,7 +147,7 @@ export const getTransactions = async (req, res) => {
     }
 };
 
-// @desc    İşlem detayı getir
+// @desc    Get transaction by ID
 // @route   GET /api/transactions/:id
 // @access  Private
 export const getTransaction = async (req, res) => {
@@ -135,13 +160,19 @@ export const getTransaction = async (req, res) => {
         if (!transaction) {
             return res.status(404).json({
                 success: false,
-                error: 'İşlem bulunamadı'
+                error: 'Transaction not found'
             });
         }
 
+        // Format date in response
+        const formattedTransaction = {
+            ...transaction.toObject(),
+            date: moment(transaction.date).format('DD.MM.YYYY-HH:mm')
+        };
+
         res.json({
             success: true,
-            data: transaction
+            data: formattedTransaction
         });
     } catch (error) {
         res.status(500).json({
@@ -151,7 +182,7 @@ export const getTransaction = async (req, res) => {
     }
 };
 
-// @desc    İşlem güncelle
+// @desc    Update transaction
 // @route   PUT /api/transactions/:id
 // @access  Private
 export const updateTransaction = async (req, res) => {
@@ -174,27 +205,35 @@ export const updateTransaction = async (req, res) => {
         if (!transaction) {
             return res.status(404).json({
                 success: false,
-                error: 'İşlem bulunamadı'
+                error: 'Transaction not found'
             });
         }
 
-        // Alan güncellemeleri
-        if (type && ['gelir', 'gider'].includes(type)) transaction.type = type;
+        // Field updates
+        if (type && ['income', 'expense'].includes(type)) transaction.type = type;
         if (amount && amount > 0) transaction.amount = amount;
         if (categoryId) transaction.category = categoryId;
-        if (accountType && ['nakit', 'banka', 'kredi-karti'].includes(accountType)) {
+        if (accountType && ['cash', 'bank', 'credit-card'].includes(accountType)) {
             transaction.accountType = accountType;
         }
         if (description !== undefined) transaction.description = description;
-        if (date) transaction.date = date;
+        if (date) {
+            transaction.date = moment(date, 'DD.MM.YYYY-HH:mm').toDate();
+        }
         if (attachments) transaction.attachments = attachments;
 
         await transaction.save();
         await transaction.populate('category', 'name');
 
+        // Format date in response
+        const formattedTransaction = {
+            ...transaction.toObject(),
+            date: moment(transaction.date).format('DD.MM.YYYY-HH:mm')
+        };
+
         res.json({
             success: true,
-            data: transaction
+            data: formattedTransaction
         });
     } catch (error) {
         res.status(500).json({
@@ -204,7 +243,7 @@ export const updateTransaction = async (req, res) => {
     }
 };
 
-// @desc    İşlem sil
+// @desc    Delete transaction
 // @route   DELETE /api/transactions/:id
 // @access  Private
 export const deleteTransaction = async (req, res) => {
@@ -217,13 +256,13 @@ export const deleteTransaction = async (req, res) => {
         if (!transaction) {
             return res.status(404).json({
                 success: false,
-                error: 'İşlem bulunamadı'
+                error: 'Transaction not found'
             });
         }
 
         res.json({
             success: true,
-            message: 'İşlem başarıyla silindi'
+            message: 'Transaction deleted successfully'
         });
     } catch (error) {
         res.status(500).json({

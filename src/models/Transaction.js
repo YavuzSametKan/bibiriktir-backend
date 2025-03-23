@@ -1,17 +1,5 @@
 import mongoose from 'mongoose';
 
-const attachmentSchema = new mongoose.Schema({
-    url: {
-        type: String,
-        required: true
-    },
-    type: {
-        type: String,
-        enum: ['image/jpeg', 'image/png', 'image/jpg'],
-        required: true
-    }
-});
-
 const transactionSchema = new mongoose.Schema({
     user: {
         type: mongoose.Schema.Types.ObjectId,
@@ -20,24 +8,24 @@ const transactionSchema = new mongoose.Schema({
     },
     type: {
         type: String,
-        required: [true, 'İşlem tipi zorunludur'],
-        enum: ['gelir', 'gider'],
+        required: [true, 'Transaction type is required'],
+        enum: ['income', 'expense'],
         lowercase: true
     },
     amount: {
         type: Number,
-        required: [true, 'Tutar zorunludur'],
-        min: [0, 'Tutar 0\'dan küçük olamaz']
+        required: [true, 'Amount is required'],
+        min: [0, 'Amount cannot be less than 0']
     },
     category: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Category',
-        required: [true, 'Kategori zorunludur']
+        required: [true, 'Category is required']
     },
     accountType: {
         type: String,
-        required: [true, 'Hesap türü zorunludur'],
-        enum: ['nakit', 'banka', 'kredi-karti'],
+        required: [true, 'Account type is required'],
+        enum: ['cash', 'bank', 'credit-card'],
         lowercase: true
     },
     description: {
@@ -46,15 +34,22 @@ const transactionSchema = new mongoose.Schema({
     },
     date: {
         type: Date,
-        required: [true, 'Tarih zorunludur'],
-        default: Date.now
+        required: [true, 'Date is required']
     },
-    attachments: [attachmentSchema]
-}, {
-    timestamps: true
+    attachments: [{
+        url: {
+            type: String,
+            required: true
+        },
+        type: {
+            type: String,
+            enum: ['image/jpeg', 'image/png', 'image/jpg'],
+            required: true
+        }
+    }]
 });
 
-// İndeksler
+// Indexes
 transactionSchema.index({ user: 1, date: -1 });
 transactionSchema.index({ category: 1 });
 transactionSchema.index({ type: 1 });
