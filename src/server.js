@@ -1,34 +1,39 @@
 import express from "express";
 import dotenv from "dotenv";
 import cookieParser from "cookie-parser";
-import mongoose from "mongoose";
-import authRouter from "./features/auth/router.js";
+import connectDB from "./config/database.js";
 
-const app = express()
+// Route'ları import et
+import authRoutes from "./routes/auth.routes.js";
+import categoryRoutes from "./routes/category.routes.js";
+import transactionRoutes from "./routes/transaction.routes.js";
 
-app.use(express.json())
+// Middleware'leri import et
+import { errorHandler } from "./middleware/error.middleware.js";
+import { protect } from "./middleware/auth.middleware.js";
 
-// Uploading env file
-dotenv.config()
+dotenv.config();
 
-mongoose.connect(process.env.DATABASE_CONNECTION_URL, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true
-})
-.then(() => console.log('MongoDB connection is successfully'))
-.catch(err => console.error('MongoDB connection is unsuccessfully:', err))
+// MongoDB bağlantısı
+connectDB();
 
-app.use(cookieParser(process.env.COOKIE_SECRET_KEY))
+const app = express();
 
-const PORT = process.env.PORT || 3000
+// Middleware'ler
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
 
-// Root endpoint
-app.get('/', (req, res) => {
-    res.status(200).send({ msg: 'Bibiriktir server is running.' })
-})
+// Route'lar
+app.use('/api/auth', authRoutes);
+app.use('/api/categories', protect, categoryRoutes);
+app.use('/api/transactions', protect, transactionRoutes);
 
-app.use('/auth', authRouter)
+// Error handler
+app.use(errorHandler);
+
+const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
-    console.log(`Server is running to localhost:${PORT}`)
-})
+    console.log(`Sunucu ${PORT} portunda çalışıyor...`);
+});
