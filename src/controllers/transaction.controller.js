@@ -1,10 +1,35 @@
 import Transaction from '../models/Transaction.js';
 import moment from 'moment-timezone';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 // Set default timezone for moment
 moment.tz.setDefault('Europe/Istanbul');
 
-// @desc    Create new transaction
+// Uploads dizini yolunu al
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const uploadDir = path.join(__dirname, '../../uploads');
+
+// Eski dosyayı silme yardımcı fonksiyonu
+const deleteFile = (filename) => {
+    if (!filename) return;
+    
+    const filePath = path.join(uploadDir, filename);
+    try {
+        if (fs.existsSync(filePath)) {
+            fs.unlinkSync(filePath);
+            console.log('Dosya başarıyla silindi:', filename);
+        } else {
+            console.log('Silinecek dosya bulunamadı:', filename);
+        }
+    } catch (error) {
+        console.error('Dosya silinirken hata oluştu:', error);
+    }
+};
+
+// @desc    Yeni işlem oluştur
 // @route   POST /api/transactions
 // @access  Private
 export const createTransaction = async (req, res) => {
@@ -15,46 +40,56 @@ export const createTransaction = async (req, res) => {
             categoryId,
             accountType,
             description,
-            date,
-            attachments
+            date
         } = req.body;
 
-        // Required field validations
+        // Validasyonlar
         if (!type || !['income', 'expense'].includes(type)) {
             return res.status(400).json({
                 success: false,
-                error: 'Please provide a valid transaction type (income/expense)'
+                error: 'Geçerli bir işlem tipi girin (income/expense)'
             });
         }
 
         if (!amount || amount <= 0) {
             return res.status(400).json({
                 success: false,
-                error: 'Please provide a valid amount'
+                error: 'Geçerli bir tutar girin'
             });
         }
 
         if (!categoryId) {
             return res.status(400).json({
                 success: false,
-                error: 'Category is required'
+                error: 'Kategori zorunludur'
             });
         }
 
         if (!accountType || !['cash', 'bank', 'credit-card'].includes(accountType)) {
             return res.status(400).json({
                 success: false,
-                error: 'Please provide a valid account type (cash/bank/credit-card)'
+                error: 'Geçerli bir hesap tipi girin (cash/bank/credit-card)'
             });
         }
 
-        // Parse and format date if provided, otherwise use current time
+        // Tarih işleme
         let transactionDate;
         if (date) {
-            // Expecting date in format: DD.MM.YYYY-HH:mm
             transactionDate = moment(date, 'DD.MM.YYYY-HH:mm').toDate();
         } else {
             transactionDate = moment().toDate();
+        }
+
+        // Dosya bilgilerini hazırla
+        let attachment = null;
+        if (req.file) {
+            attachment = {
+                filename: req.file.filename,
+                originalname: req.file.originalname,
+                mimetype: req.file.mimetype,
+                size: req.file.size,
+                url: `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`
+            };
         }
 
         const transaction = await Transaction.create({
@@ -65,12 +100,12 @@ export const createTransaction = async (req, res) => {
             accountType,
             description,
             date: transactionDate,
-            attachments: attachments || []
+            attachment
         });
 
         await transaction.populate('category', 'name');
 
-        // Format the date in response
+        // Tarihi formatla
         const formattedTransaction = {
             ...transaction.toObject(),
             date: moment(transaction.date).format('DD.MM.YYYY-HH:mm')
@@ -81,6 +116,11 @@ export const createTransaction = async (req, res) => {
             data: formattedTransaction
         });
     } catch (error) {
+        // Hata durumunda yüklenen dosyayı sil
+        if (req.file) {
+            deleteFile(req.file.filename);
+        }
+        
         res.status(500).json({
             success: false,
             error: error.message
@@ -88,7 +128,7 @@ export const createTransaction = async (req, res) => {
     }
 };
 
-// @desc    Get all transactions
+// @desc    Tüm işlemleri getir
 // @route   GET /api/transactions
 // @access  Private
 export const getTransactions = async (req, res) => {
@@ -104,7 +144,7 @@ export const getTransactions = async (req, res) => {
 
         const query = { user: req.user._id };
 
-        // Filters
+        // Filtreler
         if (type && ['income', 'expense'].includes(type)) {
             query.type = type;
         }
@@ -128,7 +168,7 @@ export const getTransactions = async (req, res) => {
             .populate('category', 'name')
             .sort(sort);
 
-        // Format dates in response
+        // Tarihleri formatla
         const formattedTransactions = transactions.map(transaction => ({
             ...transaction.toObject(),
             date: moment(transaction.date).format('DD.MM.YYYY-HH:mm')
@@ -147,7 +187,7 @@ export const getTransactions = async (req, res) => {
     }
 };
 
-// @desc    Get transaction by ID
+// @desc    İşlem detayını getir
 // @route   GET /api/transactions/:id
 // @access  Private
 export const getTransaction = async (req, res) => {
@@ -160,11 +200,11 @@ export const getTransaction = async (req, res) => {
         if (!transaction) {
             return res.status(404).json({
                 success: false,
-                error: 'Transaction not found'
+                error: 'İşlem bulunamadı'
             });
         }
 
-        // Format date in response
+        // Tarihi formatla
         const formattedTransaction = {
             ...transaction.toObject(),
             date: moment(transaction.date).format('DD.MM.YYYY-HH:mm')
@@ -182,11 +222,18 @@ export const getTransaction = async (req, res) => {
     }
 };
 
-// @desc    Update transaction
+// @desc    İşlem güncelle
 // @route   PUT /api/transactions/:id
 // @access  Private
 export const updateTransaction = async (req, res) => {
     try {
+        console.log('=== Güncelleme Başladı ===');
+        console.log('Request:', {
+            body: req.body,
+            file: req.file,
+            params: req.params
+        });
+
         const {
             type,
             amount,
@@ -194,48 +241,117 @@ export const updateTransaction = async (req, res) => {
             accountType,
             description,
             date,
-            attachments
+            removeAttachment
         } = req.body;
 
+        // İşlemi bul
         const transaction = await Transaction.findOne({
             _id: req.params.id,
             user: req.user._id
         });
 
         if (!transaction) {
+            console.log('İşlem bulunamadı:', req.params.id);
+            // Yeni dosya yüklendiyse sil
+            if (req.file) {
+                deleteFile(req.file.filename);
+            }
             return res.status(404).json({
                 success: false,
-                error: 'Transaction not found'
+                error: 'İşlem bulunamadı'
             });
         }
 
-        // Field updates
-        if (type && ['income', 'expense'].includes(type)) transaction.type = type;
-        if (amount && amount > 0) transaction.amount = amount;
-        if (categoryId) transaction.category = categoryId;
+        console.log('Mevcut işlem:', transaction);
+
+        // Güncelleme objesi oluştur
+        const updateData = {};
+
+        // Alan güncellemeleri
+        if (type && ['income', 'expense'].includes(type)) updateData.type = type;
+        if (amount && amount > 0) updateData.amount = amount;
+        if (categoryId) updateData.category = categoryId;
         if (accountType && ['cash', 'bank', 'credit-card'].includes(accountType)) {
-            transaction.accountType = accountType;
+            updateData.accountType = accountType;
         }
-        if (description !== undefined) transaction.description = description;
+        if (description !== undefined) updateData.description = description;
         if (date) {
-            transaction.date = moment(date, 'DD.MM.YYYY-HH:mm').toDate();
+            updateData.date = moment(date, 'DD.MM.YYYY-HH:mm').toDate();
         }
-        if (attachments) transaction.attachments = attachments;
 
-        await transaction.save();
-        await transaction.populate('category', 'name');
+        // Ek dosya işlemleri
+        if (removeAttachment === 'true') {
+            console.log('Ek kaldırma işlemi başladı');
+            // Eski dosyayı sil
+            if (transaction.attachment) {
+                console.log('Eski dosya siliniyor:', transaction.attachment);
+                deleteFile(transaction.attachment.filename);
+            }
+            // Ek bilgisini null yap
+            updateData.attachment = null;
+        } else if (req.file) {
+            console.log('Yeni ek yükleme işlemi başladı');
+            // Eski dosyayı sil (eğer varsa)
+            if (transaction.attachment && transaction.attachment.filename) {
+                console.log('Eski dosya siliniyor:', transaction.attachment);
+                deleteFile(transaction.attachment.filename);
+            }
+            
+            // Yeni ek bilgilerini kaydet
+            const attachmentData = {
+                filename: req.file.filename,
+                originalname: req.file.originalname,
+                mimetype: req.file.mimetype,
+                size: req.file.size,
+                url: `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`
+            };
+            console.log('Yeni dosya bilgileri:', attachmentData);
+            updateData.attachment = attachmentData;
+        }
 
-        // Format date in response
+        console.log('Güncelleme verisi:', updateData);
+
+        // İşlemi güncelle
+        let updatedTransaction;
+        try {
+            updatedTransaction = await Transaction.findOneAndUpdate(
+                { _id: req.params.id, user: req.user._id },
+                updateData,
+                { new: true, runValidators: true }
+            ).populate('category', 'name');
+
+            if (!updatedTransaction) {
+                throw new Error('İşlem güncellenemedi');
+            }
+        } catch (error) {
+            console.error('Güncelleme hatası:', error);
+            // Yeni dosya yüklendiyse sil
+            if (req.file) {
+                deleteFile(req.file.filename);
+            }
+            throw error;
+        }
+
+        console.log('Güncellenmiş işlem:', updatedTransaction);
+
+        // Tarihi formatla
         const formattedTransaction = {
-            ...transaction.toObject(),
-            date: moment(transaction.date).format('DD.MM.YYYY-HH:mm')
+            ...updatedTransaction.toObject(),
+            date: moment(updatedTransaction.date).format('DD.MM.YYYY-HH:mm')
         };
 
+        console.log('=== Güncelleme Tamamlandı ===');
         res.json({
             success: true,
             data: formattedTransaction
         });
     } catch (error) {
+        console.error('Güncelleme hatası:', error);
+        // Hata durumunda yüklenen dosyayı sil
+        if (req.file) {
+            deleteFile(req.file.filename);
+        }
+        
         res.status(500).json({
             success: false,
             error: error.message
@@ -243,7 +359,7 @@ export const updateTransaction = async (req, res) => {
     }
 };
 
-// @desc    Delete transaction
+// @desc    İşlem sil
 // @route   DELETE /api/transactions/:id
 // @access  Private
 export const deleteTransaction = async (req, res) => {
@@ -256,13 +372,13 @@ export const deleteTransaction = async (req, res) => {
         if (!transaction) {
             return res.status(404).json({
                 success: false,
-                error: 'Transaction not found'
+                error: 'İşlem bulunamadı'
             });
         }
 
         res.json({
             success: true,
-            message: 'Transaction deleted successfully'
+            message: 'İşlem başarıyla silindi'
         });
     } catch (error) {
         res.status(500).json({

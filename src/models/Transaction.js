@@ -8,23 +8,23 @@ const transactionSchema = new mongoose.Schema({
     },
     type: {
         type: String,
-        required: [true, 'Transaction type is required'],
+        required: [true, 'İşlem tipi zorunludur'],
         enum: ['income', 'expense'],
         lowercase: true
     },
     amount: {
         type: Number,
-        required: [true, 'Amount is required'],
-        min: [0, 'Amount cannot be less than 0']
+        required: [true, 'Tutar zorunludur'],
+        min: [0, 'Tutar 0\'dan küçük olamaz']
     },
     category: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Category',
-        required: [true, 'Category is required']
+        required: [true, 'Kategori zorunludur']
     },
     accountType: {
         type: String,
-        required: [true, 'Account type is required'],
+        required: [true, 'Hesap tipi zorunludur'],
         enum: ['cash', 'bank', 'credit-card'],
         lowercase: true
     },
@@ -34,19 +34,17 @@ const transactionSchema = new mongoose.Schema({
     },
     date: {
         type: Date,
-        required: [true, 'Date is required']
+        required: [true, 'Tarih zorunludur']
     },
-    attachments: [{
-        url: {
-            type: String,
-            required: true
-        },
-        type: {
-            type: String,
-            enum: ['image/jpeg', 'image/png', 'image/jpg'],
-            required: true
-        }
-    }]
+    attachment: {
+        filename: String,
+        originalname: String,
+        mimetype: String,
+        size: Number,
+        url: String
+    }
+}, {
+    timestamps: true
 });
 
 // Indexes
