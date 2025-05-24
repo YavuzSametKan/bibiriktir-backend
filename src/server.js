@@ -10,6 +10,8 @@ import { fileURLToPath } from "url";
 import authRoutes from "./routes/auth.routes.js";
 import categoryRoutes from "./routes/category.routes.js";
 import transactionRoutes from "./routes/transaction.routes.js";
+import statisticsRoutes from "./routes/statistics.routes.js";
+import goalRoutes from "./routes/goal.routes.js";
 
 // Middleware'leri import et
 import { errorHandler } from "./middleware/error.middleware.js";
@@ -46,6 +48,8 @@ app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 app.use('/api/auth', authRoutes);
 app.use('/api/categories', protect, categoryRoutes);
 app.use('/api/transactions', protect, transactionRoutes);
+app.use('/api/statistics', statisticsRoutes);
+app.use('/api/goals', protect, goalRoutes);
 
 // Error handler
 app.use(errorHandler);
