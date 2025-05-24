@@ -1,31 +1,45 @@
 import Category from '../models/Category.js';
 
-// @desc    Create new category
+// @desc    Kategori oluştur
 // @route   POST /api/categories
 // @access  Private
 export const createCategory = async (req, res) => {
     try {
-        const { name } = req.body;
+        const { name, type } = req.body;
 
-        // Name validation
-        if (!name || name.trim().length === 0) {
+        // Validasyonlar
+        if (!name || !type) {
             return res.status(400).json({
                 success: false,
-                error: 'Category name is required'
+                error: 'Kategori adı ve tipi zorunludur'
             });
         }
 
-        // Check for duplicate category
-        const existingCategory = await Category.findOne({ name: name.trim() });
+        if (!['expense', 'income'].includes(type)) {
+            return res.status(400).json({
+                success: false,
+                error: 'Geçersiz kategori tipi. Tip "expense" veya "income" olmalıdır'
+            });
+        }
+
+        // Aynı isimde ve tipte kategori var mı kontrol et
+        const existingCategory = await Category.findOne({
+            user: req.user._id,
+            name: name.toLowerCase(),
+            type
+        });
+
         if (existingCategory) {
             return res.status(400).json({
                 success: false,
-                error: 'Category with this name already exists'
+                error: 'Bu isimde ve tipte bir kategori zaten mevcut'
             });
         }
 
         const category = await Category.create({
-            name: name.trim()
+            user: req.user._id,
+            name: name.toLowerCase(),
+            type
         });
 
         res.status(201).json({
@@ -40,13 +54,20 @@ export const createCategory = async (req, res) => {
     }
 };
 
-// @desc    Get all categories
+// @desc    Tüm kategorileri getir
 // @route   GET /api/categories
 // @access  Private
 export const getCategories = async (req, res) => {
     try {
-        const categories = await Category.find().sort({ name: 1 });
-        
+        const { type } = req.query;
+        const query = { user: req.user._id };
+
+        if (type && ['expense', 'income'].includes(type)) {
+            query.type = type;
+        }
+
+        const categories = await Category.find(query).sort({ name: 1 });
+
         res.json({
             success: true,
             count: categories.length,
@@ -60,46 +81,29 @@ export const getCategories = async (req, res) => {
     }
 };
 
-// @desc    Update category
+// @desc    Kategori güncelle
 // @route   PUT /api/categories/:id
 // @access  Private
 export const updateCategory = async (req, res) => {
     try {
-        const { name } = req.body;
+        const { name, type } = req.body;
 
-        // Name validation
-        if (!name || name.trim().length === 0) {
-            return res.status(400).json({
-                success: false,
-                error: 'Category name is required'
-            });
-        }
-
-        // Check for duplicate category
-        const existingCategory = await Category.findOne({
-            name: name.trim(),
-            _id: { $ne: req.params.id }
+        const category = await Category.findOne({
+            _id: req.params.id,
+            user: req.user._id
         });
-        
-        if (existingCategory) {
-            return res.status(400).json({
-                success: false,
-                error: 'Category with this name already exists'
-            });
-        }
-
-        const category = await Category.findByIdAndUpdate(
-            req.params.id,
-            { name: name.trim() },
-            { new: true, runValidators: true }
-        );
 
         if (!category) {
             return res.status(404).json({
                 success: false,
-                error: 'Category not found'
+                error: 'Kategori bulunamadı'
             });
         }
+
+        if (name) category.name = name.toLowerCase();
+        if (type && ['expense', 'income'].includes(type)) category.type = type;
+
+        await category.save();
 
         res.json({
             success: true,
@@ -113,23 +117,26 @@ export const updateCategory = async (req, res) => {
     }
 };
 
-// @desc    Delete category
+// @desc    Kategori sil
 // @route   DELETE /api/categories/:id
 // @access  Private
 export const deleteCategory = async (req, res) => {
     try {
-        const category = await Category.findByIdAndDelete(req.params.id);
+        const category = await Category.findOneAndDelete({
+            _id: req.params.id,
+            user: req.user._id
+        });
 
         if (!category) {
             return res.status(404).json({
                 success: false,
-                error: 'Category not found'
+                error: 'Kategori bulunamadı'
             });
         }
 
         res.json({
             success: true,
-            message: 'Category deleted successfully'
+            message: 'Kategori başarıyla silindi'
         });
     } catch (error) {
         res.status(500).json({
