@@ -386,4 +386,64 @@ export const deleteTransaction = async (req, res) => {
             error: error.message
         });
     }
+};
+
+// @desc    Açıklama önerilerini getir
+// @route   GET /api/transactions/description-suggestions
+// @access  Private
+export const getDescriptionSuggestions = async (req, res) => {
+    try {
+        const { query, categoryId, type } = req.query;
+
+        if (!query || query.length < 2) {
+            return res.status(400).json({
+                success: false,
+                error: 'Arama sorgusu en az 2 karakter olmalıdır'
+            });
+        }
+
+        const matchStage = {
+            user: req.user._id,
+            description: { $regex: query, $options: 'i' }
+        };
+
+        if (categoryId) {
+            matchStage.category = categoryId;
+        }
+
+        if (type) {
+            matchStage.type = type;
+        }
+
+        const suggestions = await Transaction.aggregate([
+            { $match: matchStage },
+            {
+                $group: {
+                    _id: '$description',
+                    usageCount: { $sum: 1 },
+                    lastUsed: { $max: '$date' }
+                }
+            },
+            {
+                $project: {
+                    _id: 0,
+                    description: '$_id',
+                    usageCount: 1,
+                    lastUsed: 1
+                }
+            },
+            { $sort: { usageCount: -1, lastUsed: -1 } },
+            { $limit: 10 }
+        ]);
+
+        res.json({
+            success: true,
+            data: suggestions
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
 }; 
