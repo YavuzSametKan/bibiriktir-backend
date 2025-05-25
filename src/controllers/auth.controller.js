@@ -83,7 +83,14 @@ export const login = async (req, res) => {
 
         res.status(200).json({
             success: true,
-            message: 'Giriş başarılı'
+            message: 'Giriş başarılı',
+            data: {
+                _id: user._id,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                email: user.email,
+                birthDate: moment(user.birthDate).format('DD.MM.YYYY')
+            }
         });
     } catch (error) {
         res.status(500).json({

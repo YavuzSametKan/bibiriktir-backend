@@ -14,6 +14,7 @@ import statisticsRoutes from "./routes/statistics.routes.js";
 import goalRoutes from "./routes/goal.routes.js";
 import monthlyReviewRoutes from "./routes/monthlyReview.routes.js";
 import passwordRoutes from "./routes/password.routes.js";
+import userRoutes from "./routes/user.routes.js";
 
 // Middleware'leri import et
 import { errorHandler } from "./middleware/error.middleware.js";
@@ -57,6 +58,7 @@ app.use('/api/statistics', statisticsRoutes);
 app.use('/api/goals', protect, goalRoutes);
 app.use('/api/monthly-review', monthlyReviewRoutes);
 app.use('/api/update-password', protect, passwordRoutes);
+app.use('/api/users', userRoutes);
 
 // Error handler
 app.use(errorHandler);
