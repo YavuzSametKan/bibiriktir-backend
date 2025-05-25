@@ -4,8 +4,7 @@ import {
     getTransactions,
     getTransaction,
     updateTransaction,
-    deleteTransaction,
-    getDescriptionSuggestions
+    deleteTransaction
 } from '../controllers/transaction.controller.js';
 import { protect } from '../middleware/auth.middleware.js';
 import upload, { handleUploadError } from '../middleware/upload.middleware.js';
@@ -26,10 +25,6 @@ const debugMiddleware = (req, res, next) => {
     console.log('=====================');
     next();
 };
-
-// @route   GET /api/transactions/description-suggestions
-// @desc    Get description suggestions
-router.get('/description-suggestions', protect, getDescriptionSuggestions);
 
 // @route   GET /api/transactions
 // @desc    Get all transactions
