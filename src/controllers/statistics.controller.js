@@ -837,6 +837,6 @@ export const getStatistics = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'İstatistik verileri getirilirken bir hata oluştu'
-    });
-  }
+        });
+    }
 }; 
