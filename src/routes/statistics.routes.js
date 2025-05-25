@@ -5,7 +5,8 @@ import {
     getCategoryStatistics,
     getTrendStatistics,
     getCustomStatistics,
-    getPeriodStatistics
+    getPeriodStatistics,
+    getStatistics
 } from '../controllers/statistics.controller.js';
 
 const router = express.Router();
@@ -21,5 +22,7 @@ router.get('/monthly', getMonthlyStatistics);
 router.get('/categories', getCategoryStatistics);
 router.get('/trends', getTrendStatistics);
 router.get('/custom', getCustomStatistics);
+
+router.get('/', getStatistics);
 
 export default router; 

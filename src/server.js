@@ -12,6 +12,7 @@ import categoryRoutes from "./routes/category.routes.js";
 import transactionRoutes from "./routes/transaction.routes.js";
 import statisticsRoutes from "./routes/statistics.routes.js";
 import goalRoutes from "./routes/goal.routes.js";
+import monthlyReviewRoutes from "./routes/monthlyReview.routes.js";
 
 // Middleware'leri import et
 import { errorHandler } from "./middleware/error.middleware.js";
@@ -50,6 +51,7 @@ app.use('/api/categories', protect, categoryRoutes);
 app.use('/api/transactions', protect, transactionRoutes);
 app.use('/api/statistics', statisticsRoutes);
 app.use('/api/goals', protect, goalRoutes);
+app.use('/api/monthly-review', monthlyReviewRoutes);
 
 // Error handler
 app.use(errorHandler);

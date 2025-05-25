@@ -1,6 +1,8 @@
 import Transaction from '../models/Transaction.js';
 import moment from 'moment-timezone';
 import mongoose from 'mongoose';
+import Goal from '../models/Goal.js';
+import { startOfMonth, endOfMonth, subMonths } from 'date-fns';
 
 // @desc    Aylık istatistikleri getir
 // @route   GET /api/statistics/monthly
@@ -689,4 +691,152 @@ export const getPeriodStatistics = async (req, res) => {
             error: error.message
         });
     }
+};
+
+export const getStatistics = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const now = new Date();
+
+    // Mevcut ay ve önceki ay için tarih aralıklarını hesapla
+    const currentMonthStart = startOfMonth(now);
+    const currentMonthEnd = endOfMonth(now);
+    const previousMonthStart = startOfMonth(subMonths(now, 1));
+    const previousMonthEnd = endOfMonth(subMonths(now, 1));
+
+    // Mevcut ay için işlemleri getir
+    const currentMonthTransactions = await Transaction.find({
+      user: userId,
+      date: { $gte: currentMonthStart, $lte: currentMonthEnd }
+    }).populate('category');
+
+    // Önceki ay için işlemleri getir
+    const previousMonthTransactions = await Transaction.find({
+      user: userId,
+      date: { $gte: previousMonthStart, $lte: previousMonthEnd }
+    }).populate('category');
+
+    // Tüm hedefleri getir
+    const allGoals = await Goal.find({
+      user: userId
+    });
+
+    // Aktif hedefleri filtrele
+    const activeGoals = allGoals.filter(goal => 
+      goal.deadline >= now && goal.currentAmount < goal.targetAmount
+    );
+
+    // Tamamlanan hedefleri filtrele
+    const completedGoals = allGoals.filter(goal => 
+      goal.currentAmount >= goal.targetAmount && 
+      goal.updatedAt >= currentMonthStart && 
+      goal.updatedAt <= currentMonthEnd
+    );
+
+    // Önceki ay için tamamlanan hedefleri filtrele
+    const previousMonthCompletedGoals = allGoals.filter(goal => 
+      goal.currentAmount >= goal.targetAmount && 
+      goal.updatedAt >= previousMonthStart && 
+      goal.updatedAt <= previousMonthEnd
+    );
+
+    // Mevcut ay verilerini hesapla
+    const currentMonthData = {
+      period: {
+        start: currentMonthStart,
+        end: currentMonthEnd,
+        month: moment(currentMonthStart).format('MMMM YYYY')
+      },
+      averageTransactionPerDay: currentMonthTransactions.length / moment().diff(currentMonthStart, 'days'),
+      transactionCount: currentMonthTransactions.length,
+      activeGoalCount: activeGoals.length,
+      completedGoalCount: completedGoals.length,
+      activeGoalsAverageProgress: activeGoals.length > 0 
+        ? activeGoals.reduce((acc, goal) => acc + (goal.currentAmount / goal.targetAmount), 0) / activeGoals.length 
+        : 0,
+      totalIncome: currentMonthTransactions.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0),
+      totalExpense: currentMonthTransactions.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0),
+      goalsContributionAmount: currentMonthTransactions
+        .filter(t => t.type === 'expense' && t.category?.name === '🎯 Hedefler')
+        .reduce((acc, t) => acc + t.amount, 0)
+    };
+
+    // Net bakiye ve tasarruf oranını hesapla
+    currentMonthData.netBalance = currentMonthData.totalIncome - currentMonthData.totalExpense;
+    currentMonthData.savingRate = currentMonthData.totalIncome ? currentMonthData.netBalance / currentMonthData.totalIncome : 0;
+
+    // Kategori bazında giderleri hesapla
+    currentMonthData.expensesByCategory = currentMonthTransactions
+      .filter(t => t.type === 'expense')
+      .reduce((acc, t) => {
+        const categoryName = t.category?.name || 'Diğer';
+        acc[categoryName] = (acc[categoryName] || 0) + t.amount;
+        return acc;
+      }, {});
+
+    // Kaynak bazında gelirleri hesapla
+    currentMonthData.incomeBySource = currentMonthTransactions
+      .filter(t => t.type === 'income')
+      .reduce((acc, t) => {
+        const categoryName = t.category?.name || 'Diğer';
+        acc[categoryName] = (acc[categoryName] || 0) + t.amount;
+        return acc;
+      }, {});
+
+    // Önceki ay verilerini hesapla
+    const previousMonthData = {
+      period: {
+        start: previousMonthStart,
+        end: previousMonthEnd,
+        month: moment(previousMonthStart).format('MMMM YYYY')
+      },
+      averageTransactionPerDay: previousMonthTransactions.length / moment(previousMonthEnd).diff(previousMonthStart, 'days'),
+      transactionCount: previousMonthTransactions.length,
+      activeGoalCount: activeGoals.length, // Aktif hedef sayısı aynı kalır
+      completedGoalCount: previousMonthCompletedGoals.length,
+      activeGoalsAverageProgress: activeGoals.length > 0 
+        ? activeGoals.reduce((acc, goal) => acc + (goal.currentAmount / goal.targetAmount), 0) / activeGoals.length 
+        : 0,
+      totalIncome: previousMonthTransactions.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0),
+      totalExpense: previousMonthTransactions.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0),
+      goalsContributionAmount: previousMonthTransactions
+        .filter(t => t.type === 'expense' && t.category?.name === '🎯 Hedefler')
+        .reduce((acc, t) => acc + t.amount, 0),
+      netBalance: 0,
+      savingRate: 0,
+      expensesByCategory: previousMonthTransactions
+        .filter(t => t.type === 'expense')
+        .reduce((acc, t) => {
+          const categoryName = t.category?.name || 'Diğer';
+          acc[categoryName] = (acc[categoryName] || 0) + t.amount;
+          return acc;
+        }, {}),
+      incomeBySource: previousMonthTransactions
+        .filter(t => t.type === 'income')
+        .reduce((acc, t) => {
+          const categoryName = t.category?.name || 'Diğer';
+          acc[categoryName] = (acc[categoryName] || 0) + t.amount;
+          return acc;
+        }, {})
+    };
+
+    // Önceki ay için net bakiye ve tasarruf oranını hesapla
+    previousMonthData.netBalance = previousMonthData.totalIncome - previousMonthData.totalExpense;
+    previousMonthData.savingRate = previousMonthData.totalIncome ? previousMonthData.netBalance / previousMonthData.totalIncome : 0;
+
+    res.json({
+      success: true,
+      data: {
+        user: userId,
+        currentMonthData,
+        previousMonthData
+      }
+    });
+  } catch (error) {
+    console.error('İstatistik verileri getirilirken hata:', error);
+    res.status(500).json({
+      success: false,
+      message: 'İstatistik verileri getirilirken bir hata oluştu'
+    });
+  }
 }; 
