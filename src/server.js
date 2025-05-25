@@ -13,10 +13,14 @@ import transactionRoutes from "./routes/transaction.routes.js";
 import statisticsRoutes from "./routes/statistics.routes.js";
 import goalRoutes from "./routes/goal.routes.js";
 import monthlyReviewRoutes from "./routes/monthlyReview.routes.js";
+import passwordRoutes from "./routes/password.routes.js";
 
 // Middleware'leri import et
 import { errorHandler } from "./middleware/error.middleware.js";
 import { protect } from "./middleware/auth.middleware.js";
+
+// Cron job'ı import et
+import { startMonthlyReviewJob } from "./jobs/monthlyReviewJob.js";
 
 dotenv.config();
 
@@ -52,11 +56,15 @@ app.use('/api/transactions', protect, transactionRoutes);
 app.use('/api/statistics', statisticsRoutes);
 app.use('/api/goals', protect, goalRoutes);
 app.use('/api/monthly-review', monthlyReviewRoutes);
+app.use('/api/update-password', protect, passwordRoutes);
 
 // Error handler
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
+
+// Cron job'ı başlat
+startMonthlyReviewJob();
 
 app.listen(PORT, () => {
     console.log(`Sunucu ${PORT} portunda çalışıyor...`);
