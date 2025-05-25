@@ -47,3 +47,9 @@ jspm_packages/
 
 # Yarn Integrity file
 .yarn-integrity
+
+# Project specific
+src/scripts/
+src/uploads/
+uploads/
+scripts/
